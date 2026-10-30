@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+cache/
+checkpoints/
+datasets/
+results/
+runs/
+*.pt
+*.pth
+.vscode/
