@@ -54,11 +54,11 @@ Output: graph `Data` objects (CONTRACTS section 2).
 - [x] 2.8 `data/dataset.py`: PyG Dataset reading from cache, correct batching of `pair_index`
 - [x] 2.9 Tests: empty graph, one person, many people, batch offset of `pair_index` (`tests/test_phase2.py` passing 15/15)
 
-## Phase 3: Synthetic data and pipeline validation
+## Phase 3: Synthetic data and pipeline validation (DONE - branch phase-3)
 Output: whole pipeline runnable with no downloads. Never reported as results.
-- [ ] 3.1 `data/synthetic_dataset.py`: random boxes, features and labels written in the cache format, with a learnable signal (e.g. label depends on distance/class) so training can be sanity-checked
-- [ ] 3.2 End-to-end smoke test: synthetic cache → graph → forward pass → one train step
-- [ ] 3.3 Overfit test: a model should reach near-zero loss on 20 synthetic graphs
+- [x] 3.1 data/synthetic_dataset.py: random boxes, features and labels written in the cache format, with a learnable signal (e.g. label depends on distance/class) so training can be sanity-checked
+- [x] 3.2 End-to-end smoke test: synthetic cache → graph → forward pass → one train step
+- [x] 3.3 Overfit test: a model should reach near-zero loss on 20 synthetic graphs (9/9 tests passing in tests/test_phase3.py)
 
 ## Phase 4: Models
 Output: all models share the interface `model(data) -> logits [P, A]`.

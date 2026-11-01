@@ -20,6 +20,10 @@ from data.dataset import (
     VCOCODataset,
     hoi_collate,
 )
+from data.synthetic_dataset import (
+    SyntheticHOIGenerator,
+    SyntheticVCOCODataset,
+)
 
 __all__ = [
     "VCOCOLoader",
@@ -36,4 +40,6 @@ __all__ = [
     "compute_spatial_features",
     "VCOCODataset",
     "hoi_collate",
+    "SyntheticHOIGenerator",
+    "SyntheticVCOCODataset",
 ]
