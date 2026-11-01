@@ -1,0 +1,25 @@
+model:
+  input_dim: 896
+  hidden_dim: 256
+  num_layers: 2
+  heads: 4
+  dropout: 0.3
+  edge_dim: 9
+  num_actions: 26
+  use_edge_attr: true
+  bidirectional: true
+  feature_subset: all     # all | spatial | appearance | semantic
+  class_embed_dim: 64
+
+graph:
+  candidate_mode: all_human_object   # all_human_object | knn | distance_threshold
+  knn_k: 5
+  distance_threshold: 0.5
+
+training:
+  batch_size: 16
+  lr: 0.0005
+  weight_decay: 0.0001
+  epochs: 50
+  patience: 8
+  loss: bce               # bce | focal | weighted_bce
