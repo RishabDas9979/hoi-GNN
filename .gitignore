@@ -8,3 +8,5 @@ runs/
 *.pt
 *.pth
 .vscode/
+data/*.json
+data/vcoco/
