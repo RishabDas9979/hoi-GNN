@@ -1,0 +1,17 @@
+project:
+  name: hoi-gnn
+  seed: 42
+
+detection:
+  weights: yolov8s.pt     # downloaded automatically on first run
+  device: auto            # auto | cuda | cpu
+  imgsz: 640
+  conf_thres: 0.25
+  iou_thres: 0.5
+  max_det: 100
+  roi_output_size: 7
+  roi_sampling_ratio: 2
+
+paths:
+  cache_dir: cache/features
+  results_dir: results
