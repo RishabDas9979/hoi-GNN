@@ -21,8 +21,10 @@ from visualization.detection_visualizer import draw_detections
 def build_extractor(cfg) -> HOIFeatureExtractor:
     d = cfg["detection"]
     detector = YOLODetector(weights=d["weights"], device=d["device"], imgsz=d["imgsz"],
-                            conf_thres=d["conf_thres"], iou_thres=d["iou_thres"],
-                            max_det=d["max_det"])
+                        conf_thres=d["conf_thres"], iou_thres=d["iou_thres"],
+                        max_det=d["max_det"],
+                        max_persons=d.get("max_persons", 10),
+                        max_objects=d.get("max_objects", 30))
     roi = MultiScaleROIExtractor(d["roi_output_size"], d["roi_sampling_ratio"])
     return HOIFeatureExtractor(detector, roi, cache_dir=cfg["paths"]["cache_dir"])
 

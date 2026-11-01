@@ -9,6 +9,8 @@ detection:
   conf_thres: 0.25
   iou_thres: 0.5
   max_det: 100
+  max_persons: 10
+  max_objects: 30
   roi_output_size: 7
   roi_sampling_ratio: 2
 

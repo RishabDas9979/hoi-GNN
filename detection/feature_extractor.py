@@ -4,9 +4,8 @@ This is the contract consumed by data/graph_builder.py in Phase 2.
 """
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional, Sequence, Tuple
+from typing import Dict, Optional, Tuple
 
-import numpy as np
 import torch
 
 from detection.detector import YOLODetector, read_image_bgr
@@ -70,7 +69,8 @@ class HOIFeatureExtractor:
             return None
         d = self.detector
         tag = (f"{Path(d.weights).stem}_i{d.imgsz}_c{d.conf_thres:g}"
-               f"_n{d.iou_thres:g}_m{d.max_det}_r{self.roi.output_size}")
+               f"_n{d.iou_thres:g}_m{d.max_det}_p{d.max_persons}"
+               f"_o{d.max_objects}_r{self.roi.output_size}")
         return self.cache_dir / f"{image_id}__{tag}.pt"
 
     # -- detector-generated boxes ------------------------------------------ #
@@ -81,7 +81,7 @@ class HOIFeatureExtractor:
         cache_file = self._cache_path(image_id)
         if use_cache and cache_file is not None and cache_file.exists():
             return ImageFeatures.from_dict(
-            torch.load(cache_file, map_location="cpu", weights_only=False))
+                torch.load(cache_file, map_location="cpu", weights_only=False))
 
         image = read_image_bgr(image_path)
         out = self.detector.detect(image)
@@ -94,6 +94,20 @@ class HOIFeatureExtractor:
         if cache_file is not None:
             torch.save(feats.to_dict(), cache_file)
         return feats
+
+    def extract_many(self, items, desc: str = "Extracting"):
+        """items: iterable of (image_path, image_id). Skips cached images.
+        Returns (num_ok, num_failed); failures are printed, not fatal."""
+        from tqdm import tqdm
+        ok = failed = 0
+        for path, image_id in tqdm(list(items), desc=desc):
+            try:
+                self.extract(path, image_id, use_cache=True)
+                ok += 1
+            except Exception as e:  # unreadable image etc.
+                failed += 1
+                print(f"[skip] {image_id}: {e}")
+        return ok, failed
 
     # -- externally supplied boxes (V-COCO ground-truth boxes, Phase 2) ----- #
     def extract_for_boxes(self, image_path, boxes: torch.Tensor,

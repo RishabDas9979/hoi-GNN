@@ -91,7 +91,8 @@ class DetectorOutput:
 class YOLODetector:
     def __init__(self, weights: str = "yolov8s.pt", device: str = "auto",
                  imgsz: int = 640, conf_thres: float = 0.25,
-                 iou_thres: float = 0.5, max_det: int = 100):
+                 iou_thres: float = 0.5, max_det: int = 100,
+                 max_persons: int = 10, max_objects: int = 30):
         from ultralytics import YOLO  # imported here so tests of other modules stay light
 
         self.device = get_device(device)
@@ -99,6 +100,8 @@ class YOLODetector:
         self.conf_thres = conf_thres
         self.iou_thres = iou_thres
         self.max_det = max_det
+        self.max_persons = max_persons
+        self.max_objects = max_objects
         self.weights = weights
 
         yolo = YOLO(weights)
@@ -174,5 +177,15 @@ class YOLODetector:
             xywh, conf, cls = xywh[top], conf[top], cls[top]
         xyxy = torch.cat([xywh[:, :2] - xywh[:, 2:] / 2,
                           xywh[:, :2] + xywh[:, 2:] / 2], dim=1)
-        idx = batched_nms(xyxy, conf, cls, self.iou_thres)[: self.max_det]
+        idx = batched_nms(xyxy, conf, cls, self.iou_thres)
+        idx = self._cap_entities(idx, conf, cls)
         return xyxy[idx], conf[idx], cls[idx].long()
+
+    def _cap_entities(self, idx, conf, cls):
+        """Keep the top-scoring persons and objects separately (class 0 = person)."""
+        idx = idx[: self.max_det]                       # NMS output is sorted by score
+        is_person = cls[idx] == 0
+        persons = idx[is_person][: self.max_persons]
+        objects = idx[~is_person][: self.max_objects]
+        keep = torch.cat([persons, objects])
+        return keep[conf[keep].argsort(descending=True)]
