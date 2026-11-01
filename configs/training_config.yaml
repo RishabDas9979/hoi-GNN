@@ -1,0 +1,21 @@
+# Phase 5 settings. Kept in its own file (not model_config.yaml) to avoid merge
+# conflicts with Phase 4. Every value is a starting point, not a tuned result.
+training:
+  epochs: 30
+  batch_size: 32
+  lr: 0.001
+  weight_decay: 0.01
+  warmup_epochs: 1
+  grad_clip: 1.0
+  grad_accum: 1
+  amp: true            # ignored on CPU
+  patience: 8          # early stopping on validation mAP
+  min_delta: 0.0001
+  threshold: 0.5       # for precision/recall/F1
+  rare_below: 10       # an action is "rare" if it has < this many train positives
+  num_workers: 0
+  loss:
+    name: bce          # bce | focal | weighted_bce
+    gamma: 2.0         # focal
+    alpha: 0.25        # focal; set < 0 to disable class weighting
+    max_pos_weight: 20.0   # weighted_bce clip
