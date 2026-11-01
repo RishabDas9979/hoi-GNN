@@ -60,16 +60,16 @@ Output: whole pipeline runnable with no downloads. Never reported as results.
 - [x] 3.2 End-to-end smoke test: synthetic cache → graph → forward pass → one train step
 - [x] 3.3 Overfit test: a model should reach near-zero loss on 20 synthetic graphs (6/6 tests passing in `tests/test_phase3.py`)
 
-## Phase 4: Models
+## Phase 4: Models (DONE - branch `phase-4`)
 Output: all models share the interface `model(data) -> logits [P, A]`.
-- [ ] 4.1 `models/interaction_head.py`: concat human + object embedding + pair attributes → MLP → A logits
-- [ ] 4.2 Object-class prior baseline (frequency of action per object class; no learning on pixels)
-- [ ] 4.3 `models/mlp_baseline.py`: same inputs and head, no message passing
-- [ ] 4.4 `models/gcn.py`: GCNConv stack
-- [ ] 4.5 `models/gat.py`: GATConv stack
-- [ ] 4.6 `models/edge_aware_gatv2.py`: GATv2Conv with `edge_dim`, LayerNorm, dropout, residuals, configurable depth, `return_attention`
-- [ ] 4.7 Feature-subset switch: spatial / appearance / semantic / all
-- [ ] 4.8 Tests: forward pass shapes for every model, zero-pair graphs, gradient flows
+- [x] 4.1 `models/interaction_head.py`: concat human + object embedding + pair attributes → MLP → A logits
+- [x] 4.2 Object-class prior baseline (frequency of action per object class; no learning on pixels)
+- [x] 4.3 `models/mlp_baseline.py`: same inputs and head, no message passing
+- [x] 4.4 `models/gcn.py`: GCNConv stack
+- [x] 4.5 `models/gat.py`: GATConv stack
+- [x] 4.6 `models/edge_aware_gatv2.py`: GATv2Conv with `edge_dim`, LayerNorm, dropout, residuals, configurable depth, `return_attention`
+- [x] 4.7 Feature-subset switch: spatial / appearance / semantic / all
+- [x] 4.8 Tests: forward pass shapes for every model, zero-pair graphs, gradient flows (58/58 tests passing in `tests/test_phase4.py`)
 
 ## Phase 5: Training and evaluation
 - [ ] 5.1 `training/losses.py`: BCEWithLogits, focal, weighted BCE; apply `y_mask`
