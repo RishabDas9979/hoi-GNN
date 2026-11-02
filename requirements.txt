@@ -17,4 +17,4 @@ streamlit
 pyyaml
 tqdm
 pytest
-pyarrow<20
+pyarrow>=14.0.0,<18.0.0
