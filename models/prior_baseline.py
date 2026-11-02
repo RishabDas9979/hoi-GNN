@@ -95,7 +95,11 @@ class ObjectClassPriorBaseline(nn.Module):
         if cooccurrence_matrix is None:
             precomputed_file = Path("data/vcoco/precomputed_cooccurrence_train.pt")
             if precomputed_file.exists():
-                matrix = torch.load(precomputed_file, weights_only=True)
+                loaded = torch.load(precomputed_file, weights_only=True)
+                if loaded.shape == (num_classes, num_actions):
+                    matrix = loaded
+                else:
+                    matrix = _build_default_prior_matrix(num_classes, num_actions)
             else:
                 matrix = _build_default_prior_matrix(num_classes, num_actions)
         elif isinstance(cooccurrence_matrix, (str, Path)):
@@ -113,6 +117,28 @@ class ObjectClassPriorBaseline(nn.Module):
         self.register_buffer("cooccurrence", matrix.clone().to(torch.float32))
         self.register_buffer("prior_logits", torch.zeros((num_classes, num_actions), dtype=torch.float32))
         self._update_logits(self.alpha)
+
+    @classmethod
+    def from_config(cls, cfg: Dict[str, Any], **kwargs: Any) -> "ObjectClassPriorBaseline":
+        """Instantiate ObjectClassPriorBaseline from config dict.
+
+        Args:
+            cfg: Configuration dictionary with optional 'model' or 'runtime' section.
+            **kwargs: Explicit keyword arguments to override config values.
+
+        Returns:
+            ObjectClassPriorBaseline: Configured baseline instance.
+        """
+        model_cfg = cfg.get("model", cfg)
+        runtime = cfg.get("runtime", {})
+        params = {
+            "num_classes": model_cfg.get("num_classes", 81),
+            "num_actions": runtime.get("num_actions", model_cfg.get("num_actions", 26)),
+            "alpha": model_cfg.get("prior_alpha", 0.1),
+            "log_odds": model_cfg.get("prior_log_odds", True),
+        }
+        params.update(kwargs)
+        return cls(**params)
 
     def _update_logits(self, alpha: float) -> None:
         """Computes logit table from the co-occurrence matrix with Laplace smoothing."""
@@ -135,16 +161,16 @@ class ObjectClassPriorBaseline(nn.Module):
         probs = probs.clamp(min=eps, max=1.0 - eps)
 
         if self.log_odds:
-            # log-odds: log(p / (1 - p)), so that sigmoid(logits) == p
-            logits = torch.logit(probs)
+            # log-odds: log(p / (1 - p)) so that sigmoid(logits) == probs exactly
+            logits = torch.log(probs / (1.0 - probs))
         else:
-            # log-probabilities: log(p)
+            # Raw log-probabilities
             logits = torch.log(probs)
 
         self.prior_logits.copy_(logits)
 
     def fit(self, dataset: Iterable[Any], alpha: Optional[float] = None) -> "ObjectClassPriorBaseline":
-        """Fits the co-occurrence matrix empirically from a dataset of graphs.
+        """Re-fit the empirical prior distribution from a dataset of graphs.
 
         Args:
             dataset: Iterable of PyG Data or HOIData objects with 'class_ids', 'pair_index', and 'y'.

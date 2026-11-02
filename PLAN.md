@@ -71,16 +71,16 @@ Output: all models share the interface `model(data) -> logits [P, A]`.
 - [x] 4.7 Feature-subset switch: spatial / appearance / semantic / all
 - [x] 4.8 Tests: forward pass shapes for every model, zero-pair graphs, gradient flows (58/58 tests passing in `tests/test_phase4.py`)
 
-## Phase 5: Training and evaluation
-- [ ] 5.1 `training/losses.py`: BCEWithLogits, focal, weighted BCE; apply `y_mask`
-- [ ] 5.2 `training/trainer.py`: AdamW, cosine schedule, AMP, early stopping, grad accumulation
-- [ ] 5.3 Checkpoint saving: weights, optimizer, config, history, best model
-- [ ] 5.4 `training/train.py`: CLI `--model --config --seed`
-- [ ] 5.5 `evaluation/metrics.py`: per-action AP, mAP, precision, recall, micro/macro F1, rare vs common split, latency
-- [ ] 5.6 `evaluation/vcoco_evaluator.py`: role AP following the official definition where feasible. Document every deviation. Study the official `s-gupta/v-coco` evaluator for the convention
-- [ ] 5.7 Report GT-box and detector-box results separately
-- [ ] 5.8 Train all 5 models on the same split and seed; save results to `results/`
-- [ ] 5.9 Plots: training curves, baseline comparison table
+## Phase 5: Training and evaluation (DONE - branch `phase5-training-eval` merged)
+- [x] 5.1 `training/losses.py`: BCEWithLogits, focal, weighted BCE; apply `y_mask`
+- [x] 5.2 `training/trainer.py`: AdamW, cosine schedule, AMP, early stopping, grad accumulation
+- [x] 5.3 Checkpoint saving: weights, optimizer, config, history, best model
+- [x] 5.4 `training/train.py`: CLI `--model --config --seed`
+- [x] 5.5 `evaluation/metrics.py`: per-action AP, mAP, precision, recall, micro/macro F1, rare vs common split, latency
+- [x] 5.6 `evaluation/vcoco_evaluator.py`: role AP following the official definition where feasible. Document every deviation. Study the official `s-gupta/v-coco` evaluator for the convention
+- [x] 5.7 Report GT-box and detector-box results separately
+- [x] 5.8 Train all 5 models on the same split and seed; save results to `results/`
+- [x] 5.9 Plots: training curves, baseline comparison table (127/127 tests passing across suite)
 
 ## Phase 6: Ablations
 Run only after Phase 5 works. Reduce the grid if time is short.

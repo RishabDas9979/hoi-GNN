@@ -1,9 +1,8 @@
 """Builds train/val/test loaders for train.py.
 
 `--data fake`   : in-memory fake graphs (smoke tests only).
-`--data vcoco`  : the real pipeline. ADAPT `_real_datasets` below to the actual
-                  constructor in data/dataset.py (I could not read that file).
-`--data synthetic`: Phase 3 disk-backed synthetic set; same adapter point.
+`--data vcoco`  : the real pipeline using VCOCODataset.
+`--data synthetic`: Phase 3 disk-backed synthetic dataset using SyntheticVCOCODataset.
 """
 from __future__ import annotations
 
@@ -30,13 +29,26 @@ class LoaderBundle:
 
 
 def _real_datasets(source: str, boxes: str, model_cfg: dict):
-    """ADAPT HERE. Must return (train_ds, val_ds, test_ds), each indexable and
-    yielding HOIData objects with x, edge_index, edge_attr, pair_index, y, y_mask."""
-    try:
-        from data.dataset import HOIDataset  # class name is a guess
-    except ImportError as e:
-        raise RuntimeError("Edit training/data_hooks.py::_real_datasets to match data/dataset.py") from e
-    return tuple(HOIDataset(split=s, boxes=boxes) for s in ("train", "val", "test"))
+    """Return (train_ds, val_ds, test_ds) for real or synthetic data."""
+    use_gt_boxes = (boxes == "gt")
+    if source == "vcoco":
+        from data.dataset import VCOCODataset
+
+        cache_dir = "cache/features_gt" if use_gt_boxes else "cache/features"
+        return tuple(
+            VCOCODataset(split=s, use_gt_boxes=use_gt_boxes, cache_dir=cache_dir)
+            for s in ("train", "val", "test")
+        )
+    elif source == "synthetic":
+        from data.synthetic_dataset import SyntheticVCOCODataset
+
+        feature_dim = model_cfg.get("model", {}).get("input_dim", 56)
+        train_ds = SyntheticVCOCODataset(num_samples=200, seed=42, feature_dim=feature_dim)
+        val_ds = SyntheticVCOCODataset(num_samples=50, seed=43, feature_dim=feature_dim)
+        test_ds = SyntheticVCOCODataset(num_samples=50, seed=44, feature_dim=feature_dim)
+        return train_ds, val_ds, test_ds
+    else:
+        raise ValueError(f"Unknown data source: {source}. Expected 'vcoco', 'synthetic', or 'fake'.")
 
 
 def _label_stats(ds, num_actions: int):
@@ -54,8 +66,12 @@ def build_loaders(source: str, boxes: str, tcfg: dict, seed: int, model_cfg: dic
         from training.fake_data import make_fake_split
 
         train, val, test = (make_fake_split(n, s) for n, s in ((200, seed), (50, seed + 1), (50, seed + 2)))
+        collate_fn = None
     else:
+        from data.dataset import hoi_collate
+
         train, val, test = _real_datasets(source, boxes, model_cfg)
+        collate_fn = hoi_collate
 
     first = train[0]
     num_actions = int(get_targets(first)[0].size(-1))
@@ -67,8 +83,8 @@ def build_loaders(source: str, boxes: str, tcfg: dict, seed: int, model_cfg: dic
     g = torch.Generator().manual_seed(seed)  # makes shuffling reproducible
     bs, nw = tcfg["batch_size"], tcfg.get("num_workers", 0)
     return LoaderBundle(
-        DataLoader(train, batch_size=bs, shuffle=True, generator=g, num_workers=nw),
-        DataLoader(val, batch_size=bs, shuffle=False, num_workers=nw),
-        DataLoader(test, batch_size=bs, shuffle=False, num_workers=nw),
+        DataLoader(train, batch_size=bs, shuffle=True, generator=g, num_workers=nw, collate_fn=collate_fn),
+        DataLoader(val, batch_size=bs, shuffle=False, num_workers=nw, collate_fn=collate_fn),
+        DataLoader(test, batch_size=bs, shuffle=False, num_workers=nw, collate_fn=collate_fn),
         num_actions, node_dim, edge_dim, pos, valid,
     )

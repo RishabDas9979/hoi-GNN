@@ -56,9 +56,16 @@ def make_fake_graph(rng: np.random.Generator, num_actions: int = 6, node_dim: in
         ea[:, :2] = d
         ea[:, 2] = np.linalg.norm(d, axis=1)
 
+    boxes_norm = np.zeros((n, 4), dtype=np.float32)
+    boxes_norm[:, :2] = np.clip(x[:, :2] - 0.05, 0.0, 1.0)
+    boxes_norm[:, 2:] = np.clip(x[:, :2] + 0.05, 0.0, 1.0)
+    node_type = (cls != 0).astype(np.int64)
+
     return FakeHOIData(
         x=torch.from_numpy(x), edge_index=torch.from_numpy(ei), edge_attr=torch.from_numpy(ea),
         pair_index=torch.from_numpy(pair_index), y=torch.from_numpy(y), y_mask=torch.from_numpy(mask),
+        class_ids=torch.from_numpy(cls), boxes_norm=torch.from_numpy(boxes_norm),
+        node_type=torch.from_numpy(node_type), num_nodes=n,
     )
 
 
