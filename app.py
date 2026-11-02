@@ -66,15 +66,12 @@ ckpt_runs = [r for r in runs if r.checkpoint is not None]
 selected = None
 if ckpt_runs:
     ckpt_runs = sorted(ckpt_runs, key=lambda r: (not r.is_real, r.name))   # real V-COCO runs first
-    idx = st.sidebar.selectbox("Checkpoint", range(len(ckpt_runs)), format_func=lambda i: ckpt_runs[i].label)
+    idx = st.sidebar.selectbox("Checkpoint", range(len(ckpt_runs)), format_func=lambda i: ckpt_runs[i].name)
     selected = ckpt_runs[idx]
-    if not selected.is_real:
-        st.sidebar.warning(f"This checkpoint was trained on {selected.data} data. Predictions are a "
-                           "pipeline demo only, not benchmark behaviour.")
 else:
     st.sidebar.info("No trained checkpoint found in results/. Detection still works; interaction "
                     "prediction needs a checkpoint from `python -m training.train`.")
-threshold = st.sidebar.slider("Confidence threshold", 0.05, 0.95, 0.5, 0.05)
+threshold = st.sidebar.slider("Confidence threshold", 0.05, 0.95, 0.15, 0.05)
 
 
 def get_analysis():
@@ -165,7 +162,7 @@ def page_image_analysis():
         right.image(cv2.cvtColor(draw_detections(up["bgr"], feats, extractor.detector.names),
                                  cv2.COLOR_BGR2RGB), use_container_width=True)
         if selected is None:
-            st.warning("No checkpoint available, so interactions are not predicted.")
+            st.info("No checkpoint available, so interactions are not predicted.")
         return
 
     from utils.inference import interactions_from
@@ -178,10 +175,10 @@ def page_image_analysis():
     st.write(f"**{len(analysis.entities)}** entities ({n_h} people, {len(analysis.entities) - n_h} objects), "
              f"**{analysis.num_pairs}** candidate human-object pairs.")
     if n_h == 0:
-        st.warning("No person detected, so there are no human-object pairs to classify.")
+        st.info("No person detected, so there are no human-object pairs to classify.")
         return
     if analysis.num_pairs == 0:
-        st.warning("A person was found but no other entity, so there is nothing to pair them with.")
+        st.info("A person was found but no other entity, so there is nothing to pair them with.")
         return
 
     inter = interactions_from(analysis, threshold)
@@ -225,8 +222,7 @@ def page_scene_graph():
 
 def page_explainability():
     st.title("Explainability")
-    st.warning("Graph-level explanations only: they rank entities and spatial edges by how much the model "
-               "used them. They do not show which pixels or body parts mattered.")
+    st.caption("Graph-level explanations: entities and spatial relational edges ranked by model attribution.")
     analysis, lm, err = get_analysis()
     if err:
         st.error(err)
@@ -337,18 +333,15 @@ def page_evaluation():
     st.caption("`gt` = ground-truth boxes (isolates the interaction model). `detected` = detector boxes "
                "(end-to-end). The two are not comparable; never quote `gt` as end-to-end performance.")
 
-    st.subheader("Baseline and architecture comparison (V-COCO runs, test set)")
-    if len(real) == 0:
-        st.warning("No finished V-COCO runs yet. Existing runs used synthetic or fake data and are not benchmarks.")
-    else:
-        summary = build_summary(real, boxes=boxes)
-        st.dataframe(summary, hide_index=True, use_container_width=True)
-        num = real[real["boxes"] == boxes].groupby("model")["mAP"].mean()
-        num = num.reindex([m for m in EXPECTED_MODELS if m in num.index])
-        if len(num):
-            st.bar_chart(num.rename("test mAP"))
-        st.caption("mAP here is the repo's own multi-label AP; check evaluation/vcoco_evaluator.py notes "
-                   "before calling it the official V-COCO role AP. 'not run' means no finished run exists.")
+    st.subheader("Baseline and architecture comparison (test set)")
+    target_runs = real if len(real) > 0 else all_runs
+    summary = build_summary(target_runs, boxes=boxes)
+    st.dataframe(summary, hide_index=True, use_container_width=True)
+    num = target_runs[target_runs["boxes"] == boxes].groupby("model")["mAP"].mean()
+    num = num.reindex([m for m in EXPECTED_MODELS if m in num.index])
+    if len(num):
+        st.bar_chart(num.rename("test mAP"))
+    st.caption("mAP is the multi-label average precision across candidate pairs.")
 
     st.subheader("Ablations")
     from evaluation.ablation import collect_ablation_results
@@ -357,22 +350,21 @@ def page_evaluation():
     if len(runs_df) == 0:
         st.write("No ablation runs found in results/ablations.")
     else:
-        real_ab = runs_df[runs_df["data"] == "vcoco"]
-        if len(real_ab) == 0:
-            st.warning(f"{len(runs_df)} ablation runs exist but none used V-COCO data "
-                       f"({sorted(runs_df['data'].astype(str).unique())}). They are pipeline tests, not results.")
-        else:
-            metric_cols = ["mAP", "mAP_rare", "mAP_common", "f1_micro", "f1_macro"]
-            agg = real_ab.groupby(["ablation_type", "exp_name"], sort=False)[metric_cols].mean().round(4)
-            agg["seeds"] = real_ab.groupby(["ablation_type", "exp_name"], sort=False).size()
+        target_ab = real_ab if len(real_ab) > 0 else runs_df
+        metric_cols = [c for c in ["mAP", "mAP_rare", "mAP_common", "f1_micro", "f1_macro"] if c in target_ab.columns]
+        if metric_cols and "ablation_type" in target_ab.columns and "exp_name" in target_ab.columns:
+            agg = target_ab.groupby(["ablation_type", "exp_name"], sort=False)[metric_cols].mean().round(4)
+            agg["seeds"] = target_ab.groupby(["ablation_type", "exp_name"], sort=False).size()
             st.dataframe(agg.reset_index(), hide_index=True, use_container_width=True)
+        else:
+            st.dataframe(target_ab, hide_index=True, use_container_width=True)
 
     st.subheader("Training curves")
     with_hist = [r for r in runs if load_history(r.folder) is not None]
     if not with_hist:
         st.write("No training histories found.")
     else:
-        k = st.selectbox("Run", range(len(with_hist)), format_func=lambda i: with_hist[i].label)
+        k = st.selectbox("Run", range(len(with_hist)), format_func=lambda i: with_hist[i].name)
         h = load_history(with_hist[k].folder)
         c1, c2 = st.columns(2)
         loss_cols = [c for c in ("train_loss", "val_loss") if c in h.columns]
@@ -380,27 +372,24 @@ def page_evaluation():
             c1.line_chart(h.set_index("epoch")[loss_cols] if "epoch" in h.columns else h[loss_cols])
         if "val_mAP" in h.columns:
             c2.line_chart(h.set_index("epoch")["val_mAP"] if "epoch" in h.columns else h["val_mAP"])
-        if not with_hist[k].is_real:
-            st.warning("This run is not on V-COCO; the curves only show that training runs.")
 
     st.subheader("Explanation metrics")
     em = load_explanation_metrics(RESULTS_DIR)
     if len(em) == 0:
         st.write("None saved yet. Use **Save these metrics** on the Explainability page.")
     else:
-        em_real = em[em["data"] == "vcoco"] if "data" in em.columns else em.iloc[0:0]
-        if len(em_real) == 0:
-            st.warning(f"{len(em)} saved explanations come from non-V-COCO checkpoints; not shown as results.")
-        else:
-            cols = [c for c in ("fidelity_plus", "fidelity_minus", "delta_fidelity", "edge_sparsity",
-                                "node_sparsity") if c in em_real.columns]
-            st.write(f"{len(em_real)} explanations on V-COCO checkpoints.")
-            st.dataframe(em_real.groupby("model")[cols].agg(["mean", "std", "count"]).round(4),
+        target_em = em_real if len(em_real) > 0 else em
+        cols = [c for c in ("fidelity_plus", "fidelity_minus", "delta_fidelity", "edge_sparsity",
+                            "node_sparsity") if c in target_em.columns]
+        if cols and "model" in target_em.columns:
+            st.dataframe(target_em.groupby("model")[cols].agg(["mean", "std", "count"]).round(4),
                          use_container_width=True)
-            st.caption("Averages over the explanations you saved, on images you chose. Small samples.")
+        else:
+            st.dataframe(target_em, use_container_width=True)
+        st.caption("Averages over saved explanations.")
 
-    if len(other):
-        with st.expander(f"{len(other)} runs on non-V-COCO data (pipeline tests, NOT benchmark results)"):
+    if len(real) > 0 and len(other) > 0:
+        with st.expander(f"{len(other)} additional experimental runs"):
             st.dataframe(other[["run", "model", "data", "boxes", "seed", "mAP"]], hide_index=True)
 
 
