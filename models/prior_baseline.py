@@ -84,6 +84,7 @@ class ObjectClassPriorBaseline(nn.Module):
         cooccurrence_matrix: Optional[Union[torch.Tensor, str, Path]] = None,
         alpha: float = 0.1,
         log_odds: bool = True,
+        **kwargs: Any,
     ):
         super().__init__()
         self.num_classes = num_classes

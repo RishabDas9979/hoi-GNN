@@ -37,8 +37,25 @@ class MLPBaseline(nn.Module):
         use_pair_attr: bool = True,
         pair_attr_dim: int = 9,
         num_classes: int = 81,
+        use_edge_attr: Optional[bool] = None,
+        edge_dim: Optional[int] = None,
+        num_layers: Optional[int] = None,
+        heads: Optional[int] = None,
+        act_type: Optional[str] = None,
+        **kwargs: Any,
     ):
         super().__init__()
+        if use_edge_attr is not None:
+            if isinstance(use_edge_attr, str):
+                use_pair_attr = use_edge_attr.lower() in ("true", "1", "yes")
+            else:
+                use_pair_attr = bool(use_edge_attr)
+
+        if edge_dim is not None:
+            if edge_dim == 0:
+                use_pair_attr = False
+            pair_attr_dim = edge_dim
+
         self.node_encoder = NodeEncoder(
             input_dim=input_dim,
             hidden_dim=hidden_dim,
@@ -68,6 +85,12 @@ class MLPBaseline(nn.Module):
             MLPBaseline: Configured model instance.
         """
         model_cfg = cfg.get("model", cfg)
+        raw_use_edge = model_cfg.get("use_edge_attr", True)
+        if isinstance(raw_use_edge, str):
+            use_edge = raw_use_edge.lower() in ("true", "1", "yes")
+        else:
+            use_edge = bool(raw_use_edge)
+
         params = {
             "input_dim": model_cfg.get("input_dim", 896),
             "hidden_dim": model_cfg.get("hidden_dim", 256),
@@ -76,10 +99,14 @@ class MLPBaseline(nn.Module):
             "spatial_embed_dim": model_cfg.get("spatial_embed_dim", 64),
             "dropout": model_cfg.get("dropout", 0.3),
             "feature_subset": model_cfg.get("feature_subset", "all"),
-            "use_pair_attr": model_cfg.get("use_edge_attr", True),
+            "use_pair_attr": use_edge,
             "pair_attr_dim": model_cfg.get("edge_dim", 9),
         }
         params.update(kwargs)
+        if "use_edge_attr" in kwargs and "use_pair_attr" not in kwargs:
+            params["use_pair_attr"] = kwargs["use_edge_attr"]
+        if "edge_dim" in kwargs and "pair_attr_dim" not in kwargs:
+            params["pair_attr_dim"] = kwargs["edge_dim"]
         return cls(**params)
 
     def forward(self, data: Any) -> torch.Tensor:

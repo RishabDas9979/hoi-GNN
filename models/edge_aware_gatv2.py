@@ -39,6 +39,7 @@ class EdgeAwareGATv2HOIModel(nn.Module):
         hidden_dim (int): Latent dimension of node representations.
         heads (int): Number of attention heads.
         edge_dim (int): Dimensionality of edge relation features (default: 9).
+        use_edge_attr (bool): Whether edge attributes are incorporated in GATv2 and InteractionHead.
     """
 
     def __init__(
@@ -47,16 +48,18 @@ class EdgeAwareGATv2HOIModel(nn.Module):
         hidden_dim: int = 256,
         num_layers: int = 2,
         heads: int = 4,
-        edge_dim: int = 9,
+        edge_dim: Optional[int] = 9,
         dropout: float = 0.3,
         num_actions: int = 26,
         class_embed_dim: int = 64,
         spatial_embed_dim: int = 64,
         feature_subset: str = "all",
-        use_pair_attr: bool = True,
-        pair_attr_dim: int = 9,
+        use_edge_attr: bool = True,
+        use_pair_attr: Optional[bool] = None,
+        pair_attr_dim: Optional[int] = None,
         num_classes: int = 81,
         act_type: str = "elu",
+        **kwargs: Any,
     ):
         super().__init__()
         if hidden_dim % heads != 0:
@@ -64,10 +67,31 @@ class EdgeAwareGATv2HOIModel(nn.Module):
                 f"hidden_dim ({hidden_dim}) must be divisible by heads ({heads})."
             )
 
+        # Parse boolean use_edge_attr
+        if isinstance(use_edge_attr, str):
+            use_edge_attr = use_edge_attr.lower() in ("true", "1", "yes")
+        else:
+            use_edge_attr = bool(use_edge_attr)
+
+        if use_pair_attr is not None and not use_pair_attr:
+            use_edge_attr = False
+
+        # Condition: If use_edge_attr=False or edge_dim is None or edge_dim == 0:
+        # - GATv2Conv layers created with edge_dim=None
+        # - InteractionHead instantiated with use_pair_attr=use_edge_attr
+        if not use_edge_attr or edge_dim is None or edge_dim == 0:
+            self.use_edge_attr = False
+            conv_edge_dim = None
+            effective_edge_dim = 0
+        else:
+            self.use_edge_attr = True
+            conv_edge_dim = int(edge_dim)
+            effective_edge_dim = int(edge_dim)
+
         self.num_layers = num_layers
         self.hidden_dim = hidden_dim
         self.heads = heads
-        self.edge_dim = edge_dim
+        self.edge_dim = effective_edge_dim
         self.out_per_head = hidden_dim // heads
 
         self.node_encoder = NodeEncoder(
@@ -91,7 +115,7 @@ class EdgeAwareGATv2HOIModel(nn.Module):
                     in_channels=hidden_dim,
                     out_channels=self.out_per_head,
                     heads=heads,
-                    edge_dim=edge_dim,
+                    edge_dim=conv_edge_dim,
                     dropout=dropout,
                 )
             )
@@ -102,11 +126,23 @@ class EdgeAwareGATv2HOIModel(nn.Module):
                 self.acts.append(nn.ELU())
             self.dropouts.append(nn.Dropout(dropout))
 
+        # InteractionHead instantiated with use_pair_attr=use_edge_attr
+        if not self.use_edge_attr:
+            head_use_pair_attr = False
+        else:
+            head_use_pair_attr = use_pair_attr if use_pair_attr is not None else True
+
+        p_dim = (
+            pair_attr_dim
+            if pair_attr_dim is not None
+            else (effective_edge_dim if effective_edge_dim > 0 else 9)
+        )
+
         self.interaction_head = InteractionHead(
             hidden_dim=hidden_dim,
             num_actions=num_actions,
-            use_pair_attr=use_pair_attr,
-            pair_attr_dim=pair_attr_dim,
+            use_pair_attr=head_use_pair_attr,
+            pair_attr_dim=p_dim,
             dropout=dropout,
         )
 
@@ -122,21 +158,33 @@ class EdgeAwareGATv2HOIModel(nn.Module):
             EdgeAwareGATv2HOIModel: Configured model instance.
         """
         model_cfg = cfg.get("model", cfg)
+        raw_use_edge = model_cfg.get("use_edge_attr", True)
+        if isinstance(raw_use_edge, str):
+            use_edge_attr = raw_use_edge.lower() in ("true", "1", "yes")
+        else:
+            use_edge_attr = bool(raw_use_edge)
+
+        raw_edge_dim = model_cfg.get("edge_dim", 9)
+        edge_dim = int(raw_edge_dim) if raw_edge_dim is not None else None
+
         params = {
             "input_dim": model_cfg.get("input_dim", 896),
             "hidden_dim": model_cfg.get("hidden_dim", 256),
             "num_layers": model_cfg.get("num_layers", 2),
             "heads": model_cfg.get("heads", 4),
-            "edge_dim": model_cfg.get("edge_dim", 9),
+            "edge_dim": edge_dim,
             "dropout": model_cfg.get("dropout", 0.3),
             "num_actions": model_cfg.get("num_actions", 26),
             "class_embed_dim": model_cfg.get("class_embed_dim", 64),
             "spatial_embed_dim": model_cfg.get("spatial_embed_dim", 64),
             "feature_subset": model_cfg.get("feature_subset", "all"),
-            "use_pair_attr": model_cfg.get("use_edge_attr", True),
-            "pair_attr_dim": model_cfg.get("edge_dim", 9),
+            "use_edge_attr": use_edge_attr,
+            "use_pair_attr": use_edge_attr,
+            "pair_attr_dim": edge_dim if edge_dim is not None else 9,
         }
         params.update(kwargs)
+        if "use_edge_attr" in kwargs and "use_pair_attr" not in kwargs:
+            params["use_pair_attr"] = kwargs["use_edge_attr"]
         return cls(**params)
 
     def forward(
@@ -200,27 +248,38 @@ class EdgeAwareGATv2HOIModel(nn.Module):
         # 1. Project node features via NodeEncoder
         h = self.node_encoder(data)
 
-        # Ensure edge_index and edge_attr are valid tensors
+        # Ensure edge_index is a valid tensor
         if edge_index is None:
             edge_index = torch.zeros((2, 0), dtype=torch.long, device=h.device)
-        if edge_attr is None:
-            edge_attr = torch.zeros(
-                (edge_index.shape[1], self.edge_dim), dtype=torch.float32, device=h.device
-            )
-        else:
-            edge_attr = edge_attr.to(torch.float32)
 
-        # 2. GATv2 Message Passing with relational edge attributes
+        if self.use_edge_attr:
+            if edge_attr is None:
+                dim = self.edge_dim if self.edge_dim > 0 else 9
+                edge_attr = torch.zeros(
+                    (edge_index.shape[1], dim), dtype=torch.float32, device=h.device
+                )
+            else:
+                edge_attr = edge_attr.to(torch.float32)
+
+        # 2. GATv2 Message Passing with optional relational edge attributes
         attention_list: List[Tuple[torch.Tensor, torch.Tensor]] = []
         for conv, norm, act, drop in zip(self.convs, self.norms, self.acts, self.dropouts):
             h_res = h
             if return_attention:
-                h_conv, att = conv(
-                    h, edge_index, edge_attr=edge_attr, return_attention_weights=True
-                )
+                if self.use_edge_attr:
+                    h_conv, att = conv(
+                        h, edge_index, edge_attr=edge_attr, return_attention_weights=True
+                    )
+                else:
+                    h_conv, att = conv(
+                        h, edge_index, return_attention_weights=True
+                    )
                 attention_list.append(att)
             else:
-                h_conv = conv(h, edge_index, edge_attr=edge_attr)
+                if self.use_edge_attr:
+                    h_conv = conv(h, edge_index, edge_attr=edge_attr)
+                else:
+                    h_conv = conv(h, edge_index)
 
             h_conv = norm(h_conv)
             h_conv = act(h_conv)
