@@ -3,7 +3,7 @@
 Stacks multi-head GATConv layers with LayerNorm, ELU activation, Dropout, and
 residual skip connections, and classifies candidate pairs via InteractionHead.
 """
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple, Union
 import torch
 import torch.nn as nn
 from torch_geometric.nn import GATConv
@@ -152,54 +152,93 @@ class GATHOIModel(nn.Module):
             params["pair_attr_dim"] = kwargs["edge_dim"]
         return cls(**params)
 
-    def forward(self, data: Any) -> torch.Tensor:
-        """Forward pass for interaction classification.
+    def forward(
+        self,
+        data: Any,
+        return_attention: bool = False,
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, List[Tuple[torch.Tensor, torch.Tensor]]]]:
+        """Forward pass for interaction classification with optional attention extraction.
 
         Args:
             data: PyG Data or HOIData instance containing node features, edge_index [2, E],
                   candidate pair_index [P, 2], and optional pair_attr [P, 9].
+            return_attention: If True, returns `(logits, attention_list)` where attention_list
+                              contains `(edge_index, alpha)` tuples for each GATConv layer.
 
         Returns:
-            torch.Tensor: [P, num_actions] unnormalized action logits.
+            Union[torch.Tensor, Tuple[torch.Tensor, List]]:
+                - If return_attention=False: logits tensor of shape [P, num_actions].
+                - If return_attention=True: tuple of (logits, attention_list).
         """
         pair_index = getattr(data, "pair_index", None)
-        if pair_index is None or pair_index.numel() == 0 or pair_index.shape[0] == 0:
-            dev = next(self.parameters()).device
-            if hasattr(data, "x") and data.x is not None and data.x.numel() > 0:
-                dev = data.x.device
-            elif hasattr(data, "x_visual") and data.x_visual is not None and data.x_visual.numel() > 0:
-                dev = data.x_visual.device
-            return torch.zeros(
+        edge_index = getattr(data, "edge_index", None)
+        pair_attr = getattr(data, "pair_attr", None)
+
+        # Determine reference device
+        dev = next(self.parameters()).device
+        if hasattr(data, "x") and data.x is not None and data.x.numel() > 0:
+            dev = data.x.device
+        elif hasattr(data, "x_visual") and data.x_visual is not None and data.x_visual.numel() > 0:
+            dev = data.x_visual.device
+
+        # Determine node count
+        num_nodes = getattr(data, "num_nodes", None)
+        if num_nodes is None:
+            if hasattr(data, "x") and data.x is not None:
+                num_nodes = data.x.shape[0]
+            elif hasattr(data, "x_visual") and data.x_visual is not None:
+                num_nodes = data.x_visual.shape[0]
+            else:
+                num_nodes = 0
+
+        # Handle zero nodes (V = 0)
+        if num_nodes == 0:
+            empty_logits = torch.zeros(
                 (0, self.interaction_head.num_actions),
                 dtype=torch.float32,
                 device=dev,
             )
+            if return_attention:
+                empty_att = [
+                    (
+                        torch.zeros((2, 0), dtype=torch.long, device=dev),
+                        torch.zeros((0, self.heads), dtype=torch.float32, device=dev),
+                    )
+                    for _ in range(self.num_layers)
+                ]
+                return empty_logits, empty_att
+            return empty_logits
 
         # 1. Encode node representations
         h = self.node_encoder(data)
 
-        # If zero nodes, return empty logits
-        if h.shape[0] == 0:
-            return torch.zeros(
-                (0, self.interaction_head.num_actions),
-                dtype=torch.float32,
-                device=h.device,
-            )
-
         # 2. GAT Message Passing layers
-        edge_index = getattr(data, "edge_index", None)
         if edge_index is None:
             edge_index = torch.zeros((2, 0), dtype=torch.long, device=h.device)
 
+        attention_list: List[Tuple[torch.Tensor, torch.Tensor]] = []
         for conv, norm, act, drop in zip(self.convs, self.norms, self.acts, self.dropouts):
             h_res = h
-            h_conv = conv(h, edge_index)
+            if return_attention:
+                h_conv, att = conv(h, edge_index, return_attention_weights=True)
+                attention_list.append(att)
+            else:
+                h_conv = conv(h, edge_index)
             h_conv = norm(h_conv)
             h_conv = act(h_conv)
             h_conv = drop(h_conv)
             h = h_conv + h_res
 
         # 3. Classify candidate pairs
-        pair_attr = getattr(data, "pair_attr", None)
-        logits = self.interaction_head(h, pair_index, pair_attr)
+        if pair_index is None or pair_index.numel() == 0 or pair_index.shape[0] == 0:
+            logits = torch.zeros(
+                (0, self.interaction_head.num_actions),
+                dtype=torch.float32,
+                device=h.device,
+            )
+        else:
+            logits = self.interaction_head(h, pair_index, pair_attr)
+
+        if return_attention:
+            return logits, attention_list
         return logits
