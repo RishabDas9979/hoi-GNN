@@ -92,12 +92,12 @@ Run only after Phase 5 works. Reduce the grid if time is short.
 - [x] 6.6 `evaluation/ablation.py`: loop, write CSV, make tables and plots
 - [x] 6.7 If time allows, repeat the key comparison across 3 seeds (150/150 tests passing across suite)
 ## Phase 7: Explainability
-- [ ] 7.1 `explainability/gnn_explainer.py`: PyG Explainer + GNNExplainer for one pair; verify the model interface works with PyG 2.6.1 explainers (may need a thin wrapper)
-- [ ] 7.2 `explainability/attention_analysis.py`: extract GATv2 attention, plot per edge; note attention is not proof of importance
-- [ ] 7.3 `explainability/integrated_gradients.py`: Captum IG on node and edge features
-- [ ] 7.4 `explainability/explanation_metrics.py`: fidelity, sparsity, stability across seeds, edge-removal and feature-perturbation tests, randomized-model sanity check
-- [ ] 7.5 `visualization/explanation_visualizer.py`: node/edge importance on the scene graph
-- [ ] 7.6 State clearly that this is graph-level attribution, not pixel-level
+- [x] 7.1 `explainability/gnn_explainer.py`: PyG Explainer + GNNExplainer for one pair; verify the model interface works with PyG 2.6.1 explainers (may need a thin wrapper)
+- [x] 7.2 `explainability/attention_analysis.py`: extract GATv2 attention, plot per edge; note attention is not proof of importance
+- [x] 7.3 `explainability/integrated_gradients.py`: Captum IG on node and edge features
+- [x] 7.4 `explainability/explanation_metrics.py`: fidelity, sparsity, stability across seeds, edge-removal and feature-perturbation tests, randomized-model sanity check
+- [x] 7.5 `visualization/explanation_visualizer.py`: node/edge importance on the scene graph
+- [x] 7.6 State clearly that this is graph-level attribution, not pixel-level
 
 ## Phase 8: Streamlit application
 - [ ] 8.1 `visualization/detection_visualizer.py`: boxes and labels on the image
