@@ -82,16 +82,15 @@ Output: all models share the interface `model(data) -> logits [P, A]`.
 - [x] 5.8 Train all 5 models on the same split and seed; save results to `results/`
 - [x] 5.9 Plots: training curves, baseline comparison table (127/127 tests passing across suite)
 
-## Phase 6: Ablations
+## Phase 6: Ablations (DONE - branch `phase-6`)
 Run only after Phase 5 works. Reduce the grid if time is short.
-- [ ] 6.1 Topology: directed vs bidirectional vs alternative candidate edges
-- [ ] 6.2 Features: spatial only, appearance only, semantic only, combined
-- [ ] 6.3 Architecture: GCN vs GAT vs GATv2
-- [ ] 6.4 Depth: 1, 2, 3 layers
-- [ ] 6.5 Edge attributes: without vs with
-- [ ] 6.6 `evaluation/ablation.py`: loop, write CSV, make tables and plots
-- [ ] 6.7 If time allows, repeat the key comparison across 3 seeds
-
+- [x] 6.1 Topology: directed vs bidirectional vs alternative candidate edges
+- [x] 6.2 Features: spatial only, appearance only, semantic only, combined
+- [x] 6.3 Architecture: GCN vs GAT vs GATv2
+- [x] 6.4 Depth: 1, 2, 3 layers
+- [x] 6.5 Edge attributes: without vs with
+- [x] 6.6 `evaluation/ablation.py`: loop, write CSV, make tables and plots
+- [x] 6.7 If time allows, repeat the key comparison across 3 seeds (150/150 tests passing across suite)
 ## Phase 7: Explainability
 - [ ] 7.1 `explainability/gnn_explainer.py`: PyG Explainer + GNNExplainer for one pair; verify the model interface works with PyG 2.6.1 explainers (may need a thin wrapper)
 - [ ] 7.2 `explainability/attention_analysis.py`: extract GATv2 attention, plot per edge; note attention is not proof of importance

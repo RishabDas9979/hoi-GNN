@@ -41,6 +41,7 @@ def parse_args(argv=None):
     ap.add_argument("--out", default="results")
     ap.add_argument("--epochs", type=int, default=None)
     ap.add_argument("--device", default="auto")
+    ap.add_argument("--run-name", default=None, help="override the default folder name under --out")
     return ap.parse_args(argv)
 
 
@@ -64,7 +65,8 @@ def main(argv=None) -> Path:
         model.fit(data.train_loader.dataset)
 
     loss_fn = build_loss(tcfg["loss"], data.train_pos_counts, data.train_valid_counts)
-    run_dir = Path(args.out) / f"{args.model}_{args.boxes}_seed{args.seed}"
+    folder_name = args.run_name if args.run_name else f"{args.model}_{args.boxes}_seed{args.seed}"
+    run_dir = Path(args.out) / folder_name
     meta = {"model_name": args.model, "runtime": runtime, "seed": args.seed,
             "cfg": {"model": model_cfg, "training": copy.deepcopy(tcfg), "data": args.data, "boxes": args.boxes}}
     trainer = Trainer(model, loss_fn, tcfg, device, run_dir, meta, data.train_pos_counts)

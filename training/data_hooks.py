@@ -31,21 +31,45 @@ class LoaderBundle:
 def _real_datasets(source: str, boxes: str, model_cfg: dict):
     """Return (train_ds, val_ds, test_ds) for real or synthetic data."""
     use_gt_boxes = (boxes == "gt")
+    model_cfg = model_cfg or {}
+    graph_cfg = model_cfg.get("graph", {})
+    model_section = model_cfg.get("model", {})
+
+    from data.graph_builder import GraphBuilder
+
+    builder = GraphBuilder(
+        candidate_mode=graph_cfg.get("candidate_mode", "all_human_object"),
+        k_neighbors=graph_cfg.get("knn_k", 8),
+        dist_threshold=graph_cfg.get("distance_threshold", 0.5),
+        bidirectional=model_section.get("bidirectional", False),
+    )
+
     if source == "vcoco":
         from data.dataset import VCOCODataset
 
         cache_dir = "cache/features_gt" if use_gt_boxes else "cache/features"
         return tuple(
-            VCOCODataset(split=s, use_gt_boxes=use_gt_boxes, cache_dir=cache_dir)
+            VCOCODataset(
+                split=s,
+                use_gt_boxes=use_gt_boxes,
+                cache_dir=cache_dir,
+                graph_builder=builder,
+            )
             for s in ("train", "val", "test")
         )
     elif source == "synthetic":
         from data.synthetic_dataset import SyntheticVCOCODataset
 
-        feature_dim = model_cfg.get("model", {}).get("input_dim", 56)
-        train_ds = SyntheticVCOCODataset(num_samples=200, seed=42, feature_dim=feature_dim)
-        val_ds = SyntheticVCOCODataset(num_samples=50, seed=43, feature_dim=feature_dim)
-        test_ds = SyntheticVCOCODataset(num_samples=50, seed=44, feature_dim=feature_dim)
+        feature_dim = model_section.get("input_dim", 56)
+        train_ds = SyntheticVCOCODataset(
+            num_samples=200, seed=42, feature_dim=feature_dim, graph_builder=builder
+        )
+        val_ds = SyntheticVCOCODataset(
+            num_samples=50, seed=43, feature_dim=feature_dim, graph_builder=builder
+        )
+        test_ds = SyntheticVCOCODataset(
+            num_samples=50, seed=44, feature_dim=feature_dim, graph_builder=builder
+        )
         return train_ds, val_ds, test_ds
     else:
         raise ValueError(f"Unknown data source: {source}. Expected 'vcoco', 'synthetic', or 'fake'.")
